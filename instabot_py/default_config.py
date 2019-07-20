@@ -45,6 +45,7 @@ DEFAULT_CONFIG = {
     "end_at_m": 59,
     "end_at_h": 23,
     "user_max_follow": 0,
+    "filter_key": False,
     "comment_list": [
         ["this", "the", "your"],
         ["photo", "picture", "pic", "shot", "snapshot"],

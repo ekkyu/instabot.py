@@ -22,6 +22,7 @@ import requests
 from instabot_py.config import config
 from instabot_py.persistence.manager import PersistenceManager
 
+from instabot_develop import filter
 
 class InstaBot:
     """
@@ -79,7 +80,11 @@ class InstaBot:
         self.comment_list = config.get("comment_list")
 
         self.instaloader = instaloader.Instaloader()
-
+        
+        # Filter from instabot_develop
+        self.filter_key = config.get("filter_key")
+        self.filter = filter.FilterExample(self.filter_key)
+        
         # Unfollow Criteria & Options
         self.unfollow_recent_feed = self.str2bool(config.get("unfollow_recent_feed"))
         self.unfollow_not_following = self.str2bool(
@@ -792,16 +797,26 @@ class InstaBot:
                         1, self.max_like_for_one_tag
                     )
                     self.remove_already_liked()
-                # ------------------- Like -------------------
-                self.new_auto_mod_like()
+                
+                username = self.get_username_by_user_id(self.media_by_tag[0]["node"]["owner"]["id"])
+                
+                if self.filter.username_filter(username):
+                    try:
+                        del self.media_by_tag[0]
+                    except:
+                        self.logger.debug("Could not remove media")
+                else:
+                    # ------------------- Like -------------------
+                    self.new_auto_mod_like()
+                    # ------------------- Follow -------------------
+                    self.new_auto_mod_follow()
+                    # ------------------- Comment -------------------
+                    self.new_auto_mod_comments()
+
                 # ------------------- Unlike -------------------
                 self.new_auto_mod_unlike()
-                # ------------------- Follow -------------------
-                self.new_auto_mod_follow()
                 # ------------------- Unfollow -------------------
                 self.new_auto_mod_unfollow()
-                # ------------------- Comment -------------------
-                self.new_auto_mod_comments()
                 # Bot iteration in 1 sec
                 time.sleep(1)
                 # self.logger.debug("Tic!")
