@@ -22,6 +22,12 @@ import requests
 from instabot_py.config import config
 from instabot_py.persistence.manager import PersistenceManager
 
+from time import sleep
+from selenium import webdriver
+from bs4 import BeautifulSoup
+from selenium.webdriver.common.action_chains  import ActionChains
+from selenium.webdriver.common.keys import Keys
+
 
 class InstaBot:
     """
@@ -122,6 +128,15 @@ class InstaBot:
         if self.comments_per_day > 0:
             self.comments_delay = self.time_in_day / self.comments_per_day
 
+        # username target
+        self.options = webdriver.ChromeOptions()
+        self.options.add_argument('--no-sandbox')
+        self.options.add_argument('--headless')
+        self.driver = webdriver.Chrome(executable_path='/usr/local/bin/chromedriver', options=self.options)
+        self.action = ActionChains(self.driver)
+        
+        self.target_username_list = config.get("target_username_list")
+        
         # Don't like if media have more than n likes.
         self.media_max_like = config.get("media_max_like")
         # Don't like if media have less than n likes.
@@ -273,6 +288,16 @@ class InstaBot:
                 self.user_blacklist[user] = id_user
                 self.logger.info(f"Blacklisted user {user} added with ID: {id_user}")
                 time.sleep(5 * random.random())
+
+    def add_cookie2webdriver(self, cookies):
+        self.driver.get(self.url)
+        for cookie in cookies:
+            cookie_str = str(cookie)
+            name_pattern = "\ [^=]*"
+            value_pattern = "\=[^ ]*"
+            name = re.search(name_pattern, cookie_str).group().strip()
+            value = re.search(value_pattern, cookie_str).group().lstrip("=")
+            self.driver.add_cookie({'name':name, 'value':value})
 
     def login(self):
 
@@ -432,6 +457,8 @@ class InstaBot:
             self.s.cookies["ig_vh"] = "772"
             self.s.cookies["ig_or"] = "landscape-primary"
             time.sleep(5 * random.random())
+
+        self.add_cookie2webdriver(self.s.cookies)
 
         if successfulLogin:
             r = self.s.get("https://www.instagram.com/")
@@ -772,6 +799,38 @@ class InstaBot:
     def new_auto_mod(self):
         self.mainloop()
 
+    def get_follower(self):
+        target_username = random.choice(self.target_username_list)
+        url = "https://www.instagram.com/{}/followers".format(target_username)
+        self.driver.get(url)
+        
+        sleep(1)
+        
+        element_follower_button_xpath = '//*[@id="react-root"]/section/main/div/header/section/ul/li[2]/a'
+        self.driver.find_element_by_xpath(element_follower_button_xpath).click()
+        
+        sleep(3)
+        
+        followers_list = self.get_follower_list()
+        return random.choice(followers_list)
+
+    
+    def get_follower_list(self):
+        html_source = self.driver.page_source
+        pattern = '<a class="FPmhX notranslate _0imsa " title="(.*?)" href="'
+        results = re.findall(pattern, html_source, re.S)
+        return results
+
+    def get_media_id_by_username(self, username):
+        self.logger.info(f"Get Media by username: {username}")
+        url_user_detail = self.url_user_detail % (username)
+        r = self.s.get(url_user_detail)
+        soup = BeautifulSoup(r.content, 'html.parser') # 'lxml'  -> 'html.parser'
+        js = soup.find("script", text=re.compile("window._sharedData")).text
+        all_data = json.loads(js[js.find("{"):js.rfind("}")+1]);
+
+        self.media_by_tag = list(all_data["entry_data"]["ProfilePage"][0]["graphql"]["user"][ "edge_owner_to_timeline_media"] ["edges"])
+    
     def mainloop(self):
         while self.prog_run and self.login_status:
             now = datetime.datetime.now()
@@ -785,13 +844,25 @@ class InstaBot:
             )
             if (dns == 0 or dne < dns) and dne != 0:
                 # ------------------- Get media_id -------------------
-                if len(self.media_by_tag) == 0:
-                    self.get_media_id_by_tag(random.choice(self.tag_list))
-                    self.this_tag_like_count = 0
-                    self.max_tag_like_count = random.randint(
-                        1, self.max_like_for_one_tag
-                    )
-                    self.remove_already_liked()
+                true_or_false = [True, False]
+                if len(self.target_username_list) == 0 or random.choice(true_or_false):
+                    if len(self.media_by_tag) == 0:
+                        self.get_media_id_by_tag(random.choice(self.tag_list))
+                        self.this_tag_like_count = 0
+                        self.max_tag_like_count = random.randint(
+                            1, self.max_like_for_one_tag
+                        )
+                        self.remove_already_liked()
+                else:
+                    if len(self.media_by_tag) == 0:
+                        try:
+                            target_follower = self.get_follower()
+                            self.get_media_id_by_username(target_follower)
+                        except Exception as exc:
+                            self.media_by_tag = []
+                            self.logger.warning("Except on get_media!")
+                            self.logger.exception(exc)
+
                 # ------------------- Like -------------------
                 self.new_auto_mod_like()
                 # ------------------- Unlike -------------------

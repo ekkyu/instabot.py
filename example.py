@@ -9,6 +9,7 @@ bot = InstaBot(
     like_per_day=1000,
     comments_per_day=0,
     tag_list=["follow4follow", "f4f", "cute", "l:212999109"],
+    target_username_list=["ekkkkyu", "onose004"],
     tag_blacklist=["rain", "thunderstorm"],
     user_blacklist={},
     max_like_for_one_tag=50,

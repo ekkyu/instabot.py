@@ -91,6 +91,7 @@ DEFAULT_CONFIG = {
     "time_till_unlike": 259200,
     "unfollow_everyone": False,
     "tag_list": ["cat", "car", "dog"],
+    "target_username_list": [],
     "like_per_day": 1000,
     "accept_language": "en-US,en;q=0.5",
     # If you have 3 400 error in row - looks like you banned.
